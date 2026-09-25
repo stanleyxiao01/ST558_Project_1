@@ -1,0 +1,9 @@
+---
+title: "ST 558 Project 1"
+author: Stanley Xiao
+date: "2026-09-24"
+format: html
+editor: visual
+---
+
+## 
