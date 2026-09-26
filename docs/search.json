@@ -26,5 +26,12 @@
     "title": "Housing Costs and Commuting Patterns Across the United States, 2021-2024",
     "section": "Data Source",
     "text": "Data Source\nThe data for this project comes from the U.S. Census Bureau’s Public Use Microdata Sample (PUMS) API. PUMS provides person-level-like records containing demographic, housing, education, and commuting information.\nThis project focuses on data from 2021, 2022, 2023, and 2024."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "ST 558 Project 1",
+    "section": "",
+    "text": "ST 558 Project 1\nProject 1"
   }
 ]
