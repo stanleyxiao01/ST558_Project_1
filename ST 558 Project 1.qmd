@@ -12,6 +12,7 @@ Housing costs and commuting are two important parts of everyday life that vary s
 In this project, I use data from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API to investigate housing costs and commuting patterns across the United States from 2021 through 2024. I'm particularly interested in examining how gross rent, rent as a percentage of household income, and commute duration vary across geographic areas and over time.
 
 ## Setup
+
 ```{r}
 #Install packages as necessary
 library(httr)
