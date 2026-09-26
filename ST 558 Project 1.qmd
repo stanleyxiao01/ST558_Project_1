@@ -16,8 +16,8 @@ In this project, I use data from the U.S. Census Bureau's Public Use Microdata S
 #Install packages as necessary
 library(httr)
 library(jsonlite)
-library(tidyverse)
 library(lubridate)
+library(tidyverse)
 ```
 
 ## Data Source
