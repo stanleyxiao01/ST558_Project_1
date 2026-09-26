@@ -1,9 +1,27 @@
 ---
-title: "ST 558 Project 1"
+title: "Housing Costs and Commuting Patterns Across the United States, 2021-2024"
 author: Stanley Xiao
-date: "2026-09-24"
 format: html
 editor: visual
 ---
 
-## 
+## Introduction
+
+Housing costs and commuting are two important parts of everyday life that vary significantly across the United States. Differences in housing costs, income, geography, and commuting patterns result in very different experiences depending on which part of the country someone lives in.
+
+In this project, I use data from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API to investigate housing costs and commuting patterns across the United States from 2021 through 2024. I'm particularly interested in examining how gross rent, rent as a percentage of household income, and commute duration vary across geographic areas and over time.
+
+## Setup
+```{r}
+#Install packages as necessary
+library(httr)
+library(jsonlite)
+library(tidyverse)
+library(lubridate)
+```
+
+## Data Source
+
+The data for this project comes from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API. PUMS provides person-level-like records containing demographic, housing, education, and commuting information.
+
+This project focuses on data from 2021, 2022, 2023, and 2024.
