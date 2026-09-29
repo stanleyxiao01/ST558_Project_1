@@ -511,31 +511,153 @@ plot(
 
 ## Investigation
 
-For the final investigation, I use the functions developed above to examine housing costs and commuting patterns across the United States from 2021 through 2024. I focus on differences across Census divisions and over time.
+For the final investigation, I use the functions developed above to examine housing cost burden, gas costs, and commuting patterns across the United States from 2021 through 2024. I focus on differences across Census divisions and over time.
 
-The primary variables used in this investigation are gross rent (`GASP`), gross rent as a percentage of household income (`GRPIP`), and travel time to work (`JWMNP`). I also include sex (`SEX`) as a categorical variable and `PWGTP` so that the observations can be properly weighted.
+The primary variables used in this investigation are gross rent as a percentage of household income (`GRPIP`), monthly gas cost (`GASP`), and travel time to work (`JWMNP`). I also include sex (`SEX`) as a categorical variable and `PWGTP` so that the observations can be properly weighted.
 
 ```{r}
-#| eval:false
-
-Retrieve data for all Census divisions from 2021-2024
-investigation_data <- get_census_years(
-  years = 2021:2024,
-  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
-  categorical_vars = "SEX",
-  geography = "Division",
-  geo_value = "all"
-)
+#| eval: false
+#Retrieve data for all Census divisions from 2021-2024
+#investigation_data <- get_census_years(
+#  years = 2021:2024,
+#  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
+#  categorical_vars = "SEX",
+#  geography = "Division",
+#  geo_value = "all"
+#)
 
 #Save data locally for future use
-saveRDS(investigation_data, "data/investigation_data.rds")
+#saveRDS(investigation_data, "data/investigation_data.rds")
 ```
 
+Here, I load the saved investigation data.
 ```{r}
 #Load saved investigation data
 investigation_data <- readRDS("data/investigation_data.rds")
-#Used below function since original dataset had 2 census
-class(investigation_data) <- unique(class(investigation_data))
-class(investigation_data)
 ```
+
+Division codes are in a numerical format from the Census. It is converted using the below code into text.
+```{r}
+#Get Census division labels
+division_labels <- variables_2024$DIVISION$values$item
+
+#Convert division codes to descriptive labels
+investigation_data$division <- factor(
+  investigation_data$division,
+  levels = 1:9,
+  labels = c(
+    "New England",
+    "Middle Atlantic",
+    "East North Central",
+    "West North Central",
+    "South Atlantic",
+    "East South Central",
+    "West South Central",
+    "Mountain",
+    "Pacific"
+  )
+)
+table(investigation_data$division, useNA = "ifany")
+#Retain the updated labels
+saveRDS(investigation_data, "data/investigation_data.rds")
+```
+
+## Demonstrating summary.census() in multiple ways
+```{r}
+#Summarize housing cost burden and commute time
+summary(
+  investigation_data,
+  numeric_vars = c("GRPIP", "JWMNP"),
+  categorical_vars = "year"
+)
+#Summarize gas costs and sex
+summary(
+  investigation_data,
+  numeric_vars = c("GASP"),
+  categorical_vars = "SEX"
+)
+```
+
+## Because the complete investigation dataset contains more than 13 million observations, a stratified random sample was created for graphical analysis. A reproducible sample of 5,000 observations was selected from each Census division and year combination, resulting in 180,000 observations. The complete dataset was retained for the weighted numerical summaries, while the smaller sample waas used to make the graphical analysis computationally manageable.
+```{r}
+#| eval: false
+#Housing cost burden by year
+#plot(
+#  investigation_data,
+#  cat_var = "year",
+#  num_var = "GRPIP"
+#)
+
+#Commute time by Census division
+#plot(
+#  investigation_data,
+#  cat_var = "division",
+#  num_var = "JWMNP"
+#)
+
+#Gas cost by Census division
+#plot(
+#  investigation_data,
+#  cat_var = "division",
+#  num_var = "GASP"
+#)
+```
+
+The below is our random sample of 180,000 rows x 7 variables.
+```{r}
+#| eval: false
+set.seed(5374)
+
+#Random sample within each division and year
+investigation_sample <- investigation_data |>
+  group_by(division, year) |>
+  slice_sample(n = 5000) |>
+  ungroup()
+
+#Keep census class for S3 methods
+class(investigation_sample) <- c("census", class(investigation_sample))
+
+class(investigation_sample)
+dim(investigation_sample)
+table(investigation_sample$division, investigation_sample$year)
+
+saveRDS(investigation_sample, "data/investigation_sample.rds")
+```
+
+```{r}
+#Load the saved dataset created from the above code
+investigation_sample <- readRDS("data/investigation_sample.rds")
+```
+
+
+The weighted distribution of gross rent as a percentage of household income appear relatively similar across the four years. Each year also contains a substantial number of observations above the upper whisker, indicating a strongly right-skewed distribution.
+```{r}
+#Housing cost burden by year
+plot(
+  investigation_sample,
+  cat_var = "year",
+  num_var = "GRPIP"
+)
+
+#Commute time by Census divisionr
+plot(
+  investigation_sample,
+  cat_var = "division",
+  num_var = "JWMNP"
+) +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+```
+
+```{r}
+investigation_sample |>
+  filter(JWMNP > 250) |>
+  select(JWMNP, PWGTP, division, year, SEX)
+
+```
+
 
