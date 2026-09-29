@@ -19,13 +19,68 @@ The data for this project comes from the U.S. Census Bureau's Public Use Microda
 
 ## Setup
 
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 #Install packages as necessary
 library(httr)
 library(jsonlite)
 library(lubridate)
+```
+
+::: {.cell-output .cell-output-stderr}
+
+```
+
+Attaching package: 'lubridate'
+```
+
+
+:::
+
+::: {.cell-output .cell-output-stderr}
+
+```
+The following objects are masked from 'package:base':
+
+    date, intersect, setdiff, union
+```
+
+
+:::
+
+```{.r .cell-code}
 library(tidyverse)
 ```
+
+::: {.cell-output .cell-output-stderr}
+
+```
+── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ dplyr   1.2.1     ✔ readr   2.2.0
+✔ forcats 1.0.1     ✔ stringr 1.6.0
+✔ ggplot2 4.0.3     ✔ tibble  3.3.1
+✔ purrr   1.2.2     ✔ tidyr   1.3.2
+```
+
+
+:::
+
+::: {.cell-output .cell-output-stderr}
+
+```
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter()  masks stats::filter()
+✖ purrr::flatten() masks jsonlite::flatten()
+✖ dplyr::lag()     masks stats::lag()
+ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+```
+
+
+:::
+:::
+
 
 ## Processing Census Variable Information
 
@@ -33,7 +88,10 @@ The variables returned by the Census API are usually in the form of numeric code
 
 The state variable also differs across survey years. The 2021 and 2022 data use 'ST' while the 2023 and 2024 data use 'STATE'. The following function accounts for this difference when retrieving the required variable information.
 
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 variables_needed <- c(
   "AGEP", "GASP", "GRPIP", "JWAP", "JWDP", "JWMNP", "PWGTP", "FER", "HHL", "SCH", "SCHL", "SEX", "REGION", "DIVISION"
 )
@@ -93,13 +151,33 @@ census_variables <- list(
 variables_2024$SEX$values$item
 ```
 
-```{r}
+::: {.cell-output .cell-output-stdout}
+
+```
+$`1`
+[1] "Male"
+
+$`2`
+[1] "Female"
+```
+
+
+:::
+:::
+
+
+
+::: {.cell}
+
+```{.r .cell-code}
 #Create data folder
 dir.create("data", showWarnings = FALSE)
 
 #Save variable information
 saveRDS(census_variables, "data/census_variables.rds")
 ```
+:::
+
 
 The saved metadata (`census_variables`) will serve as a reference for interpreting the Census API data, allowing categorical variables to be converted into descriptive factor levels.
 
@@ -108,7 +186,10 @@ The saved metadata (`census_variables`) will serve as a reference for interpreti
 Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allow users to select between numeric, categorical, and geographic variables.
 
 #### First helper API response$\to$tibble
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 response_to_tibble <- function(response) {
   
   #Parse JSON response
@@ -135,9 +216,14 @@ response_to_tibble <- function(response) {
   census_data
 }
 ```
+:::
+
 
 #### Second helper Census time interval$\to$midpoint
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 #Convert Census time interval to midpoint
 time_midpoint <- function(time_interval) {
   
@@ -168,9 +254,14 @@ time_midpoint <- function(time_interval) {
 #head(variables_2024$JWAP$values$item)
 #tail(variables_2024$JWAP$values$item)
 ```
+:::
+
 
 #### Third helper to retrieve census data
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 #API Key is now required to access Census data
 census_api_key <- Sys.getenv("CENSUS_API_KEY")
 get_census_data <- function(
@@ -336,11 +427,25 @@ test_census <- get_census_data()
 class(test_census)
 ```
 
+::: {.cell-output .cell-output-stdout}
+
+```
+[1] "census"     "tbl_df"     "tbl"        "data.frame"
+```
+
+
+:::
+:::
+
+
 ## Combining Multiple Years
 
 The single-year function can be extended to compare Census data across multiple survey years. The following function allows the user to select multiple years and combines the results into one tibble.
 
-```{r}
+
+::: {.cell}
+
+```{.r .cell-code}
 get_census_years <- function(
     years = 2021:2024,
     numeric_vars = c("AGEP", "PWGTP"),
@@ -389,74 +494,35 @@ get_census_years <- function(
 test_multiple <- get_census_years( years = c(2022, 2024))
 #head(test_multiple)
 class(test_multiple)
+```
+
+::: {.cell-output .cell-output-stdout}
+
+```
+[1] "census"     "census"     "tbl_df"     "tbl"        "data.frame"
+```
+
+
+:::
+
+```{.r .cell-code}
 #table(test_multiple$year)
 test_all_years <- get_census_years(years = "all")
 class(test_all_years$year)
 ```
 
-## Generic Census Summary Function
-
-Because each row of the PUMS data may represent multiple people, the PWGTP variable must be considered when summarizing the data. The below custom summary.census() method calculates weighted means and standard deviations for numeric variables and weighted counts for categorical variables.
-
-```{r}
-summary.census <- function(
-    object,
-    numeric_vars = NULL,
-    categorical_vars = NULL
-) {
-  #Find numeric variables if none are specified
-  if (is.null(numeric_vars)) {
-    numeric_vars <- names(object)[sapply(object, is.numeric)]
-    
-    #Don't summarize weight or time variables
-    numeric_vars <- setdiff(
-      numeric_vars,
-      c("PWGTP", "JWAP", "JWDP")
-    )
-  }
-  #Find categorical variables if none are specified
-  if (is.null(categorical_vars)) {
-    categorical_vars <- names(object)[sapply(object, is.factor)]
-  }
-  #Store results
-  results <- list()
-  
-  #Summarize numeric variables
-  for (variable in numeric_vars) {
-    x <- object[[variable]]
-    weights <- object$PWGTP
-    
-    #Remove missing values
-    keep <- !is.na(x) & !is.na(weights)
-    x <- x[keep]
-    weights <- weights[keep]
-    
-    #Weighted mean
-    weighted_mean <- sum(x * weights) / sum(weights)
-    
-    #Weighted standard deviation
-    weighted_sd <- sqrt(
-      (sum((x^2) * weights) / sum(weights)) - (weighted_mean^2)
-    )
-    results[[variable]] <- c(mean = weighted_mean, sd = weighted_sd)
-  }
-  #Summarize categorical variables
-for (variable in categorical_vars) {
-  counts <- tapply(
-    object$PWGTP,
-    object[[variable]],
-    sum,
-    na.rm = TRUE
-  )
-  results[[variable]] <- counts
-  }
-
-  return(results)
-}
-
-#Test case
-summary(test_all_years)
-summary(test_all_years, numeric_vars = "AGEP", categorical_vars = "year")
+::: {.cell-output .cell-output-stdout}
 
 ```
+[1] "factor"
+```
+
+
+:::
+:::
+
+
+Because each row of the PUMS data may represent multiple people, the PWGTP variable must be considered when summarizing the data. The custom summary.census() method calculates weighted means and standard deviations for numeric variables and weighted counts for categorical variabels.
+
+
 
