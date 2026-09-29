@@ -457,6 +457,53 @@ for (variable in categorical_vars) {
 #Test case
 summary(test_all_years)
 summary(test_all_years, numeric_vars = "AGEP", categorical_vars = "year")
+```
+## Generic Census Plot Function
+A custom plot.census() method can also be used to compare a numeric variable across the levels of a categorical variable. The person weights are included in the plot so that each observation is represented according to its PUMS weight.
 
+```{r}
+plot.census <- function(
+    x,
+    cat_var,
+    num_var
+) {
+  #Check categorical variable
+  if (!cat_var %in% names(x)) {
+    stop("Categorical variable cannot be found")
+  }
+  
+  #Check numeric variable
+  if (!num_var %in% names(x)) {
+    stop("Numeric variable cannot be found")
+  }
+  
+  #Create weighted boxplot
+  ggplot(
+    x,
+    aes(
+      x = get(cat_var),
+      y = get(num_var),
+      weight = PWGTP
+    ) 
+  ) +
+    geom_boxplot() +
+    labs(
+      x = cat_var,
+      y = num_var
+    )
+}
+
+#Test case
+plot(
+  test_all_years,
+  cat_var = "year",
+  num_var = "AGEP"
+)
+
+plot(
+  test_all_years,
+  cat_var = "SEX",
+  num_var = "AGEP"
+)
 ```
 
