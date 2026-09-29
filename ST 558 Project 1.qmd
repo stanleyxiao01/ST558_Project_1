@@ -259,7 +259,7 @@ get_census_data <- function(
   #Query Census API
   response <- GET(url, query = list(
     get = paste(selected_vars, collapse = ","),
-    'for' = paste0(tolower(geo_var), ":", geography_query),
+    'for' = paste0(tolower(geography), ":", geography_query),
     key = census_api_key
   ))
   
@@ -334,5 +334,67 @@ test_census <- get_census_data()
 
 head(test_census)
 class(test_census)
+```
+
+## Combining Multiple Years
+
+The single-year function can be extended to compare Census data across multiple survey years. The following function allows the user to select multiple years and combines the results into one tibble.
+
+```{r}
+get_census_years <- function(
+    years = 2021:2024,
+    numeric_vars = c("AGEP", "PWGTP"),
+    categorical_vars = "SEX",
+    geography = "State",
+    geo_value = NULL
+) {
+  #Allow user to select all years
+  if (length(years) == 1 && tolower(as.character(years)) == "all") {
+    years <- 2021:2024
+  }
+  
+  #Check years
+  if (!all(years %in% 2021:2024)) {
+    stop("years must be 2021/2022/2023/2024 or all")
+  }
+  
+  #Empty list to store each year
+  census_list <- list()
+  
+  #Get data from each year
+  for (year in years) {
+    
+    census_list[[as.character(year)]] <- get_census_data(
+      year = year,
+      numeric_vars = numeric_vars,
+      categorical_vars = categorical_vars,
+      geography = geography,
+      geo_value = geo_value
+    )
+    
+    #Add year variable
+    census_list[[as.character(year)]]$year <- factor(year)
+  }
+  
+  #Combine years into one tibble
+  census_data <- bind_rows(census_list)
+  
+  #Add census class
+  class(census_data) <- c("census", class(census_data))
+  
+  return(census_data)
+}
+
+#Test case
+'''
+test_multiple <- get_census_years( years = c(2022, 2024))
+head(test_multiple)
+class(test_multiple)
+table(test_multiple$year)
+'''
+
+test_all_years <- get_census_years(
+  years = "all"
+)
 ```
 
