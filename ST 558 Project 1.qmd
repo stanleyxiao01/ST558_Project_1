@@ -523,7 +523,7 @@ investigation_data <- get_census_years(
   geo_value = "all"
 )
 
-#This threw an error, let's go back and see what went wrong and break it down
+#The above threw an error, let's go back and see what went wrong and break it down
 test_investigation <- get_census_years(
   years = 2024,
   numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
