@@ -507,3 +507,40 @@ plot(
 )
 ```
 
+## Investigation
+
+For the final investigation, I use the functions developed above to examine housing costs and commuting patterns across the United States from 2021 through 2024. I focus on differences across Census divisions and over time.
+
+The primary variables used in this investigation are gross rent (`GASP`), gross rent as a percentage of household income (`GRPIP`), and travel time to work (`JWMNP`). I also include sex (`SEX`) as a categorical variable and `PWGTP` so that the observations can be properly weighted.
+
+```{r}
+#Retrieve data for all Census divisions from 2021-2024
+investigation_data <- get_census_years(
+  years = 2021:2024,
+  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
+  categorical_vars = "SEX",
+  geography = "Division",
+  geo_value = "all"
+)
+
+#This threw an error, let's go back and see what went wrong and break it down
+test_investigation <- get_census_years(
+  years = 2024,
+  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
+  categorical_vars = "SEX",
+  geography = "Division",
+  geo_value = 1
+)
+
+exists("test_investigation")
+dim(test_investigation)
+head(investgation_data)
+names(investgation_data)
+dim(investgation_data)
+```
+
+```{r}
+#Saving locally since pulling via API takes a while
+saveRDS(investigation_data, "data/investigation_data.rds")
+```
+
