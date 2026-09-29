@@ -380,8 +380,10 @@ get_census_years <- function(
   census_data <- bind_rows(census_list)
   
   #Add census class
-  class(census_data) <- c("census", class(census_data))
-  
+  if (!inherits(census_data, "census")) {
+    class(census_data) <- c("census", class(census_data))
+  }
+
   return(census_data)
 }
 
@@ -514,7 +516,9 @@ For the final investigation, I use the functions developed above to examine hous
 The primary variables used in this investigation are gross rent (`GASP`), gross rent as a percentage of household income (`GRPIP`), and travel time to work (`JWMNP`). I also include sex (`SEX`) as a categorical variable and `PWGTP` so that the observations can be properly weighted.
 
 ```{r}
-#Retrieve data for all Census divisions from 2021-2024
+#| eval:false
+
+Retrieve data for all Census divisions from 2021-2024
 investigation_data <- get_census_years(
   years = 2021:2024,
   numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
@@ -523,24 +527,15 @@ investigation_data <- get_census_years(
   geo_value = "all"
 )
 
-#The above threw an error, let's go back and see what went wrong and break it down
-test_investigation <- get_census_years(
-  years = 2024,
-  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
-  categorical_vars = "SEX",
-  geography = "Division",
-  geo_value = 1
-)
-
-exists("test_investigation")
-dim(test_investigation)
-head(investgation_data)
-names(investgation_data)
-dim(investgation_data)
+#Save data locally for future use
+saveRDS(investigation_data, "data/investigation_data.rds")
 ```
 
 ```{r}
-#Saving locally since pulling via API takes a while
-saveRDS(investigation_data, "data/investigation_data.rds")
+#Load saved investigation data
+investigation_data <- readRDS("data/investigation_data.rds")
+#Used below function since original dataset had 2 census
+class(investigation_data) <- unique(class(investigation_data))
+class(investigation_data)
 ```
 
