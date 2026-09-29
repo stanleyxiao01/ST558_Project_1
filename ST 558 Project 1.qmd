@@ -11,6 +11,12 @@ Housing costs and commuting are two important parts of everyday life that vary s
 
 In this project, I use data from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API to investigate housing costs and commuting patterns across the United States from 2021 through 2024. I'm particularly interested in examining how gross rent, rent as a percentage of household income, and commute duration vary across geographic areas and over time.
 
+I created a set of reusable R functions to obtain and process data from the Census API. I also developed custom summary and plotting methods that account for the person weights included in the dataset. I used these functions to investigate patterns in housing costs and commuting across different geographic areas and years.
+
+## Data Source
+
+The data for this project comes from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API. PUMS provides person-level-like records containing demographic, housing, education, and commuting information. This project focuses on data from 2021, 2022, 2023, and 2024.
+
 ## Setup
 
 ```{r}
@@ -21,8 +27,79 @@ library(lubridate)
 library(tidyverse)
 ```
 
-## Data Source
+## Processing Census Variable Information
 
-The data for this project comes from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API. PUMS provides person-level-like records containing demographic, housing, education, and commuting information.
+The variables returned by the Census API are usually in the form of numeric codes rather than descriptive labels. The first step is to obtain the variable metadata for each year which will then be converted into meaningful values later in the analysis.
 
-This project focuses on data from 2021, 2022, 2023, and 2024.
+The state variable also differs across survey years. The 2021 and 2022 data use 'ST' while the 2023 and 2024 data use 'STATE'. The following function accounts for this difference when retrieving the required variable information.
+
+```{r}
+variables_needed <- c(
+  "AGEP", "GASP", "GRPIP", "JWAP", "JWDP", "JWMNP", "PWGTP", "FER", "HHL", "SCH", "SCHL", "SEX", "REGION", "DIVISION"
+)
+
+get_variable_info <- function(year) {
+  #Check that the year is valid
+  if (!year %in% 2021:2024) {
+    stop("Year must be 2021/2022/2023/2024")
+  }
+  
+  #URL for selected year
+  url <- paste0(
+    "https://api.census.gov/data/",
+    year,
+    "/acs/acs1/pums/variables.json"
+  )
+  
+  #Query Census API
+  response <- GET(url)
+  stop_for_status(response)
+  
+  #Parse JSON
+  variable_data <- content(
+    response,
+    as = "parsed",
+    type = "application/json"
+  )
+  
+  #State variable differs depending on year
+  state_var <- if (year <= 2022) {
+  "ST"
+  } else {
+    "STATE"
+  } 
+  
+  #Add the appropriate state variable
+  vars <- c(variables_needed, state_var)
+  
+  #Keep only variables needed for the project
+  variable_data$variables[vars]
+}
+
+#Variable information for each year
+variables_2021 <- get_variable_info(2021)
+variables_2022 <- get_variable_info(2022)
+variables_2023 <- get_variable_info(2023)
+variables_2024 <- get_variable_info(2024)
+
+#Combine yearly variable info into one list
+census_variables <- list(
+  '2021' = variables_2021,
+  '2022' = variables_2022,
+  '2023' = variables_2023,
+  '2024' = variables_2024
+)
+
+#Check for categorical variable value
+variables_2024$SEX$values$item
+```
+
+```{r}
+#Create data folder
+dir.create("data", showWarnings = FALSE)
+
+#Save variable information
+saveRDS(census_variables, "data/census_variables.rds")
+```
+
+The saved metadata (`census_variables`) will serve as a reference for interpreting the Census API data, allowing categorical variables to be converted into descriptive factor levels.
