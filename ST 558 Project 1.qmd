@@ -53,7 +53,6 @@ get_variable_info <- function(year) {
   
   #Query Census API
   response <- GET(url)
-  stop_for_status(response)
   
   #Parse JSON
   variable_data <- content(
@@ -90,7 +89,7 @@ census_variables <- list(
   '2024' = variables_2024
 )
 
-#Check for categorical variable value
+#Check for categorical variable value (FER, HHL, SCH, SCHL, SEX)
 variables_2024$SEX$values$item
 ```
 
@@ -103,3 +102,222 @@ saveRDS(census_variables, "data/census_variables.rds")
 ```
 
 The saved metadata (`census_variables`) will serve as a reference for interpreting the Census API data, allowing categorical variables to be converted into descriptive factor levels.
+
+##Querying Single-Year Census Data
+
+Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allow users to select between numeric, categorical, and geographic variables.
+
+First helper API response$\to$tibble
+```{r}
+response_to_tibble <- function(response) {
+  
+  #Parse JSON response
+  census_data <- content(
+    response,
+    as = "text",
+    encoding = "UTF-8"
+  ) |>
+    fromJSON()
+  
+  #First row contains variable names
+  variable_names <- census_data[1,]
+  
+  #Remaining rows are observation values
+  census_data <- census_data[-1, , drop = FALSE]
+  
+  #Convert to tibble
+  census_data <- as_tibble(census_data)
+  names(census_data) <- variable_names
+  
+  census_data
+}
+```
+
+Second helper Census time interval$\to$midpoint
+```{r}
+#Convert Census time interval to midpoint
+time_midpoint <- function(time_interval) {
+  
+  #Return NA for missing values
+  if (is.na(time_interval) || length(time_interval) == 0) {
+    return(NA)
+  }
+  
+  #Split beginning and ending times
+  times <- strsplit(time_interval, " to ")[[1]]
+  
+  #Remove periods from a.m and p.m.
+  times <- gsub("\\.", "", times)
+  
+  #Convert to times
+  start_time <- parse_date_time(times[1], "I:M p")
+  end_time <- parse_date_time(times[2], "I:M p")
+  
+  #Calculate midpoint
+  midpoint <- start_time + ((end_time - start_time) / 2)
+  
+  return(midpoint)
+}
+
+#Check what is outputted if there are any obvious NA values we can check. Results did not show any NA values.
+#head(variables_2024$JWDP$values$item)
+#tail(variables_2024$JWDP$values$item)
+#head(variables_2024$JWAP$values$item)
+#tail(variables_2024$JWAP$values$item)
+```
+
+Third helper to retrieve census data
+```{r}
+get_census_data <- function(
+    year = 2024,
+    numeric_vars = c("AGEP", "PWGTP"),
+    categorical_vars = "SEX",
+    geography = "State",
+    geo_value = NULL
+) {
+  
+  #Allowed variables
+  allowed_numeric <- c("AGEP", "GASP", "GRPIP", "JWAP", "JWDP", "JWMNP", "PWGTP")
+  
+  allowed_categorical <- c("FER", "HHL", "SCH", "SCHL", "SEX")
+  
+  allowed_geography <- c("Region", "Division", "State")
+  
+  #Check year
+  if (length(year) != 1 || !year %in% 2021:2024) {
+    stop("Year must be 2021/2022/2023/2024")
+  }
+  
+  #Check numeric variables
+  if (!all(numeric_vars %in% allowed_numeric)) {
+    stop("Invalid numeric variable")
+  }
+  
+  if (!"PWGTP" %in% numeric_vars) {
+    stop("PWGTP must be included as a numeric variable")
+  }
+
+  if (length(setdiff(numeric_vars, "PWGTP"))<1) {
+    stop("At least one numeric variable besides PWGTP must be selected")
+  }
+
+  #Check categorical variables
+  if (length(categorical_vars) < 1 || !all(categorical_vars %in% allowed_categorical)) {
+    stop("At least one valid categorical variable must be selected")
+  }
+  #Check geography
+  if (length(geography) != 1 || !geography %in% allowed_geography) {
+    stop("Geography must be Region, Division, or State")
+  }
+  
+  #Read variable metadata
+  variable_info <- readRDS("data/census_variables.rds")[[as.character(year)]]
+  
+  #Determine Census geography variable
+  geo_var <- if (geography == "State") {
+    if (year <= 2022) "ST" else "STATE"
+  } else {
+    toupper(geography)
+  }
+  
+  #Obtain allowable geography values
+  geo_values <- variable_info[[geo_var]]$values$item
+  
+  #Use first available geography as default
+  if (is.null(geo_value)) {
+    geo_value <- names(geo_values)[1]
+  }
+  
+  #Check selected geography value
+  if (tolower(geo_value) != "all" &&
+      !geo_value %in% names(geo_values)) {
+    stop("Invalid geography value selected")
+  }
+  
+  #Variables requested from API
+  selected_vars <- unique(c(numeric_vars, categorical_vars))
+  
+  #Create Census API URL
+  url <- paste0("https://api.census.gov/data/",
+  year,
+  "/acs/acs1/pums"
+  )
+  
+  #Allow one geography value or all values
+  if(tolower(geo_value) == "all") {
+    geography_query <- "*"
+  } else {
+    geography_query <- geo_value
+  }
+  
+  #Query Census API
+  response <- GET(url, query = list(
+    get = paste(selected_vars, collapse = ","),
+    'for' = paste0(tolower(geo_var), ":", geography_query)
+  ))
+  
+  #Convert response to tibble
+  census_data <- response_to_tibble(response)
+  
+  #Convert numeric variables (JWAP & JWDP are time variables and not ordinary variables)
+  regular_numeric <- intersect(
+    numeric_vars,
+    c("AGEP", "GASP", "GRPIP", "JWMNP", "PWGTP")
+  )
+  
+  census_data[regular_numeric] <- lapply(
+    census_data[regular_numeric],
+    as.numeric
+  )
+  
+  #Convert categorical variables to factors
+  for (variable in categorical_vars) {
+    
+    value_labels <- variable_info[[variable]]$values$item
+    
+    census_data[[variable]] <- factor(
+      census_data[[variable]],
+      levels = names(value_labels),
+      labels = unlist(value_labels)
+    )
+  }
+  
+  ##Convert time variables to midpoint
+  time_vars <- intersect(
+    numeric_vars,
+    c("JWAP", "JWDP")
+  )
+  
+  for (variable in time_vars) {
+    
+    #Get time interval labels 
+    time_labels <- variable_info[[variable]]$values$item
+    
+    #Match Census codes to time intervals
+    intervals <- sapply(
+      census_data[[variable]],
+      function(code) {
+        if (is.na(code) || !code %in% names(time_labels)) {
+          NA_character_
+        } else {
+          time_labels[[code]]
+        }
+      }
+    )
+    
+    #Convert intervals to midpoint
+    census_data[[variable]] <- lapply(
+      intervals,
+      time_midpoint
+    ) |>
+      unlist()
+  }
+  
+  #Add census class
+  class(census_data) <- c("census", class(census_data))
+
+  return(census_data)
+  #End of get_census_data function
+}
+```
+
