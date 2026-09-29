@@ -385,16 +385,15 @@ get_census_years <- function(
   return(census_data)
 }
 
-#Test case
 '''
+Test cases
 test_multiple <- get_census_years( years = c(2022, 2024))
 head(test_multiple)
 class(test_multiple)
 table(test_multiple$year)
+test_all_years <- get_census_years(years = "all")
+table(test_all_years$year)
 '''
 
-test_all_years <- get_census_years(
-  years = "all"
-)
 ```
 
