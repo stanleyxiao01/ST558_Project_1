@@ -107,7 +107,7 @@ The saved metadata (`census_variables`) will serve as a reference for interpreti
 
 Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allow users to select between numeric, categorical, and geographic variables.
 
-First helper API response$\to$tibble
+#### First helper API response$\to$tibble
 ```{r}
 response_to_tibble <- function(response) {
   
@@ -125,6 +125,9 @@ response_to_tibble <- function(response) {
   #Remaining rows are observation values
   census_data <- census_data[-1, , drop = FALSE]
   
+  #Add variable names
+  colnames(census_data) <- variable_names
+  
   #Convert to tibble
   census_data <- as_tibble(census_data)
   names(census_data) <- variable_names
@@ -133,7 +136,7 @@ response_to_tibble <- function(response) {
 }
 ```
 
-Second helper Census time interval$\to$midpoint
+#### Second helper Census time interval$\to$midpoint
 ```{r}
 #Convert Census time interval to midpoint
 time_midpoint <- function(time_interval) {
@@ -166,14 +169,17 @@ time_midpoint <- function(time_interval) {
 #tail(variables_2024$JWAP$values$item)
 ```
 
-Third helper to retrieve census data
+#### Third helper to retrieve census data
 ```{r}
+#API Key is now required to access Census data
+census_api_key <- Sys.getenv("CENSUS_API_KEY")
 get_census_data <- function(
     year = 2024,
     numeric_vars = c("AGEP", "PWGTP"),
     categorical_vars = "SEX",
     geography = "State",
-    geo_value = NULL
+    geo_value = NULL,
+    key = census_api_key
 ) {
   
   #Allowed variables
@@ -253,8 +259,12 @@ get_census_data <- function(
   #Query Census API
   response <- GET(url, query = list(
     get = paste(selected_vars, collapse = ","),
-    'for' = paste0(tolower(geo_var), ":", geography_query)
+    'for' = paste0(tolower(geo_var), ":", geography_query),
+    key = census_api_key
   ))
+  
+  #Check API request as part of debugging process
+  #print(response$url) #API key will be included in this line
   
   #Convert response to tibble
   census_data <- response_to_tibble(response)
@@ -319,5 +329,10 @@ get_census_data <- function(
   return(census_data)
   #End of get_census_data function
 }
+
+test_census <- get_census_data()
+
+head(test_census)
+class(test_census)
 ```
 
