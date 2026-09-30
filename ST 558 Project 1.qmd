@@ -686,6 +686,8 @@ The weighted mean travel time to work (JWMNP) was approximately 10.81 minutes wi
 ## Graphical Summaries (Part 2 of 2): Commute Time by Census Division
 
 ```{r}
+#| warning: false
+
 #Commute time by Census division
 plot(
   investigation_sample,
