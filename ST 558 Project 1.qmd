@@ -9,7 +9,7 @@ editor: visual
 
 Housing costs and commuting are two important parts of everyday life that vary significantly across the United States. Differences in housing costs, income, geography, and commuting patterns result in very different experiences depending on which part of the country someone lives in.
 
-In this project, I use data from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API to investigate housing costs and commuting patterns across the United States from 2021 through 2024. I'm particularly interested in examining how gross rent, rent as a percentage of household income, and commute duration vary across geographic areas and over time.
+In this project, I use data from the U.S. Census Bureau's Public Use Microdata Sample (PUMS) API to investigate housing costs and commuting patterns across the United States from 2021 through 2024. I'm particularly interested in examining how housing cost burden and commute duration vary across geographic areas and over time.
 
 I created a set of reusable R functions to obtain and process data from the Census API. I also developed custom summary and plotting methods that account for the person weights included in the dataset. I used these functions to investigate patterns in housing costs and commuting across different geographic areas and years.
 
@@ -103,9 +103,9 @@ saveRDS(census_variables, "data/census_variables.rds")
 
 The saved metadata (`census_variables`) will serve as a reference for interpreting the Census API data, allowing categorical variables to be converted into descriptive factor levels.
 
-##Querying Single-Year Census Data
+## Querying Single-Year Census Data
 
-Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allow users to select between numeric, categorical, and geographic variables.
+Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allows users to select between numeric, categorical, and geographic variables.
 
 #### First helper API response$\to$tibble
 ```{r}
@@ -130,7 +130,6 @@ response_to_tibble <- function(response) {
   
   #Convert to tibble
   census_data <- as_tibble(census_data)
-  names(census_data) <- variable_names
   
   census_data
 }
@@ -330,10 +329,16 @@ get_census_data <- function(
   #End of get_census_data function
 }
 
+```
+Below are test cases used during development
+```{r}
+#| eval: false
+
 #Test cases used during development
 test_census <- get_census_data()
-#head(test_census)
+head(test_census)
 class(test_census)
+
 ```
 
 ## Combining Multiple Years
@@ -386,6 +391,9 @@ get_census_years <- function(
 
   return(census_data)
 }
+```
+```{r}
+#| eval: false
 
 #Test cases used during development
 test_multiple <- get_census_years( years = c(2022, 2024))
@@ -395,6 +403,7 @@ class(test_multiple)
 test_all_years <- get_census_years(years = "all")
 class(test_all_years$year)
 ```
+
 
 ## Generic Census Summary Function
 
@@ -455,11 +464,17 @@ for (variable in categorical_vars) {
 
   return(results)
 }
+```
+```{r}
+#| eval: false
 
 #Test case
 summary(test_all_years)
 summary(test_all_years, numeric_vars = "AGEP", categorical_vars = "year")
+
 ```
+
+
 ## Generic Census Plot Function
 A custom plot.census() method can also be used to compare a numeric variable across the levels of a categorical variable. The person weights are included in the plot so that each observation is represented according to its PUMS weight.
 
@@ -494,6 +509,10 @@ plot.census <- function(
       y = num_var
     )
 }
+```
+
+```{r}
+#| eval: false
 
 #Test case
 plot(
@@ -511,12 +530,11 @@ plot(
 
 ## Investigation
 
-For the final investigation, I use the functions developed above to examine housing cost burden, gas costs, and commuting patterns across the United States from 2021 through 2024. I focus on differences across Census divisions and over time.
-
-The primary variables used in this investigation are gross rent as a percentage of household income (`GRPIP`), monthly gas cost (`GASP`), and travel time to work (`JWMNP`). I also include sex (`SEX`) as a categorical variable and `PWGTP` so that the observations can be properly weighted.
+For the final investigation, I use the functions developed above to examine housing cost burden and commuting patterns across the United States from 2021 through 2024. I focus on differences across Census divisions and over time. The primary variables used in this investigation are gross rent as a percentage of household income (GRPIP) and travel time to work (JWMNP). I also include PWGTP so that observations can be properly weighted.
 
 ```{r}
 #| eval: false
+
 #Retrieve data for all Census divisions from 2021-2024
 #investigation_data <- get_census_years(
 #  years = 2021:2024,
@@ -530,17 +548,19 @@ The primary variables used in this investigation are gross rent as a percentage 
 #saveRDS(investigation_data, "data/investigation_data.rds")
 ```
 
-Here, I load the saved investigation data.
+Here, I load the saved investigation data and account for the value 888 in the 2023 commute-time data. According to the Census metadata, 888 represents a suppressed value for select PUMAs in 2023 rather than an actual commute time. These values are converted to missing values before analysis.
 ```{r}
 #Load saved investigation data
 investigation_data <- readRDS("data/investigation_data.rds")
+
+#Convert suppressed 2023 commute values (888) to missing
+investigation_data$JWMNP[
+  investigation_data$JWMNP == 888 & investigation_data$year == 2023
+] <- NA
 ```
 
-Division codes are in a numerical format from the Census. It is converted using the below code into text.
+Census division codes are returned in numerical format from the Census. It is converted to descriptive labels below.
 ```{r}
-#Get Census division labels
-division_labels <- variables_2024$DIVISION$values$item
-
 #Convert division codes to descriptive labels
 investigation_data$division <- factor(
   investigation_data$division,
@@ -557,55 +577,16 @@ investigation_data$division <- factor(
     "Pacific"
   )
 )
-table(investigation_data$division, useNA = "ifany")
-#Retain the updated labels
-saveRDS(investigation_data, "data/investigation_data.rds")
 ```
 
-## Demonstrating summary.census() in multiple ways
-```{r}
-#Summarize housing cost burden and commute time
-summary(
-  investigation_data,
-  numeric_vars = c("GRPIP", "JWMNP"),
-  categorical_vars = "year"
-)
-#Summarize gas costs and sex
-summary(
-  investigation_data,
-  numeric_vars = c("GASP"),
-  categorical_vars = "SEX"
-)
-```
+## Creating a Random Sample
 
-## Because the complete investigation dataset contains more than 13 million observations, a stratified random sample was created for graphical analysis. A reproducible sample of 5,000 observations was selected from each Census division and year combination, resulting in 180,000 observations. The complete dataset was retained for the weighted numerical summaries, while the smaller sample waas used to make the graphical analysis computationally manageable.
+Because the complete investigation dataset contains more than 13 million observations, a stratified random sample was created for graphical analysis. A reproducible sample of 5,000 observations was selected from each Census division and year combination, resulting in 180,000 observations. The complete dataset was retained for the weighted numerical summaries, while the smaller sample was used to make the graphical analysis computationally manageable.
+
+The resulting random sample contains 180,000 observations and 7 variables.
 ```{r}
 #| eval: false
-#Housing cost burden by year
-#plot(
-#  investigation_data,
-#  cat_var = "year",
-#  num_var = "GRPIP"
-#)
 
-#Commute time by Census division
-#plot(
-#  investigation_data,
-#  cat_var = "division",
-#  num_var = "JWMNP"
-#)
-
-#Gas cost by Census division
-#plot(
-#  investigation_data,
-#  cat_var = "division",
-#  num_var = "GASP"
-#)
-```
-
-The below is our random sample of 180,000 rows x 7 variables.
-```{r}
-#| eval: false
 set.seed(5374)
 
 #Random sample within each division and year
@@ -625,12 +606,23 @@ saveRDS(investigation_sample, "data/investigation_sample.rds")
 ```
 
 ```{r}
-#Load the saved dataset created from the above code
+#Load saved investigation sample
 investigation_sample <- readRDS("data/investigation_sample.rds")
 ```
 
 
-The weighted distribution of gross rent as a percentage of household income appear relatively similar across the four years. Each year also contains a substantial number of observations above the upper whisker, indicating a strongly right-skewed distribution.
+## Weighted Numerical Summaries (Part 1 of 2): Housing Cost Burden by Year
+```{r}
+#Summarize housing cost burden and commute time
+summary(
+  investigation_data,
+  numeric_vars = "GRPIP",
+  categorical_vars = "year"
+)
+```
+The weighted mean gross rent as a percentage of household income (GRPIP) was approximately 10.98%, with a standard deviation of 22.60. The relatively large standard deviation indicates substantial variation in housing cost burden across observations. The weighted counts increased across the four years, from approximately 331.9 million in 2021 to 340.1 million in 2024. 
+
+## Graphical Summaries (Part 1 of 2): Housing Cost Burden by Year
 ```{r}
 #Housing cost burden by year
 plot(
@@ -638,8 +630,24 @@ plot(
   cat_var = "year",
   num_var = "GRPIP"
 )
+```
 
-#Commute time by Census divisionr
+The weighted distributions of gross rent as a percentage of household income are relatively similar from 2021 through 2024. The middle portions of the distributions show little change across the four years, although 2023 appears slightly lower and 2024 slightly higher. Each year also contains many observations with substantially higher rent-to-income percentages, indicating a right-skewed distribution of housing cost burden.
+
+## Weighted Numerical Summaries (Part 2 of 2): Commute time by Census Division
+```{r}
+#Summarize commute time and Census division
+summary(
+  investigation_data,
+  numeric_vars = "JWMNP",
+  categorical_vars = "division"
+)
+```
+The weighted mean travel time to work (JWMNP) was approximately 10.81 minutes with a standard deviation of 19.37 minutes. The relatively large standard deviation indicates substantial variation in commute times across observations. The weighted counts also differ across Census divisions, reflecting differences in the populations represented by each geographic area.
+
+## Graphical Summaries (Part 2 of 2): Commute Time by Census Division
+```{r}
+#Commute time by Census division
 plot(
   investigation_sample,
   cat_var = "division",
@@ -653,11 +661,5 @@ plot(
   )
 ```
 
-```{r}
-investigation_sample |>
-  filter(JWMNP > 250) |>
-  select(JWMNP, PWGTP, division, year, SEX)
-
-```
-
+Commute-time distributions are broadly similar across Census divisions, although some regional differences are visible. The South Atlantic and New England divisions appear to have somewhat higher typical commute times than several of the other divisions. All divisions also contain observations with much longer commute times, producing right-skewed distributions with numerous high values.
 
