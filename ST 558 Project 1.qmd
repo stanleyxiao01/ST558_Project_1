@@ -289,7 +289,7 @@ get_census_data <- function(
     )
   }
   
-  ##Convert time variables to midpoint
+  #Convert time variables to midpoint
   time_vars <- intersect(
     numeric_vars,
     c("JWAP", "JWDP")
