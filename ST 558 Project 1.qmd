@@ -332,7 +332,7 @@ get_census_data <- function(
 
 ```
 
-Below are test cases used during development
+The following examples demonstrate how the time midpoint function converts Census time intervals into midpoint values and handles non-time values.
 
 ```{r}
 #Demonstrate Census time midpoint conversion
@@ -340,7 +340,6 @@ time_midpoint("11:00 p.m. to 11:04 p.m.")
 time_midpoint("4:10 a.m. to 4:19 a.m.")
 time_midpoint("Not a time value")
 ```
-
 
 ```{r}
 #| eval: false
@@ -644,7 +643,6 @@ The custom summary method can also automatically summarize all applicable numeri
 #Default summary method
 summary(investigation_sample)
 ```
-
 
 ## Weighted Numerical Summaries (Part 1 of 2): Housing Cost Burden by Year
 
