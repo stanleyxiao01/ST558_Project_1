@@ -108,6 +108,7 @@ The saved metadata (`census_variables`) will serve as a reference for interpreti
 Next, we implement functions to query single-year PUMS data and convert the response into a tibble. The function allows users to select between numeric, categorical, and geographic variables.
 
 #### First helper API response$\to$tibble
+
 ```{r}
 response_to_tibble <- function(response) {
   
@@ -135,13 +136,18 @@ response_to_tibble <- function(response) {
 }
 ```
 
-#### Second helper Census time interval$\to$midpoint
+#### Second helper Census time interval $\to$ midpoint
+
 ```{r}
 #Convert Census time interval to midpoint
 time_midpoint <- function(time_interval) {
   
-  #Return NA for missing values
-  if (is.na(time_interval) || length(time_interval) == 0) {
+  #Return NA for missing values or non-time values
+  if (
+    is.na(time_interval) ||
+    length(time_interval) == 0 ||
+    !grepl(" to ", time_interval)
+  ) {
     return(NA)
   }
   
@@ -160,15 +166,10 @@ time_midpoint <- function(time_interval) {
   
   return(midpoint)
 }
-
-#Check what is outputted if there are any obvious NA values we can check. Results did not show any NA values.
-#head(variables_2024$JWDP$values$item)
-#tail(variables_2024$JWDP$values$item)
-#head(variables_2024$JWAP$values$item)
-#tail(variables_2024$JWAP$values$item)
 ```
 
 #### Third helper to retrieve census data
+
 ```{r}
 #API Key is now required to access Census data
 census_api_key <- Sys.getenv("CENSUS_API_KEY")
@@ -259,11 +260,8 @@ get_census_data <- function(
   response <- GET(url, query = list(
     get = paste(selected_vars, collapse = ","),
     'for' = paste0(tolower(geography), ":", geography_query),
-    key = census_api_key
+    key = key
   ))
-  
-  #Check API request as part of debugging process
-  #print(response$url) #API key will be included in this line
   
   #Convert response to tibble
   census_data <- response_to_tibble(response)
@@ -315,11 +313,14 @@ get_census_data <- function(
     )
     
     #Convert intervals to midpoint
-    census_data[[variable]] <- lapply(
-      intervals,
-      time_midpoint
-    ) |>
-      unlist()
+    census_data[[variable]] <- as.POSIXct(
+      sapply(
+        intervals,
+        function(x) as.numeric(time_midpoint(x))
+      ),
+      origin = "1970-01-01",
+      tz = "UTC"
+    )
   }
   
   #Add census class
@@ -330,7 +331,17 @@ get_census_data <- function(
 }
 
 ```
+
 Below are test cases used during development
+
+```{r}
+#Demonstrate Census time midpoint conversion
+time_midpoint("11:00 p.m. to 11:04 p.m.")
+time_midpoint("4:10 a.m. to 4:19 a.m.")
+time_midpoint("Not a time value")
+```
+
+
 ```{r}
 #| eval: false
 
@@ -339,6 +350,19 @@ test_census <- get_census_data()
 head(test_census)
 class(test_census)
 
+#Test JWAP and JWDP time conversion
+time_test <- get_census_data(
+  year = 2024,
+  numeric_vars = c("JWAP", "JWDP", "PWGTP"),
+  categorical_vars = "SEX",
+  geography = "Division",
+  geo_value = "1"
+)
+
+head(time_test[, c("JWAP", "JWDP")])
+
+class(time_test$JWAP)
+class(time_test$JWDP)
 ```
 
 ## Combining Multiple Years
@@ -392,18 +416,18 @@ get_census_years <- function(
   return(census_data)
 }
 ```
+
 ```{r}
 #| eval: false
 
 #Test cases used during development
 test_multiple <- get_census_years( years = c(2022, 2024))
-#head(test_multiple)
+head(test_multiple)
 class(test_multiple)
-#table(test_multiple$year)
+table(test_multiple$year)
 test_all_years <- get_census_years(years = "all")
 class(test_all_years$year)
 ```
-
 
 ## Generic Census Summary Function
 
@@ -465,6 +489,7 @@ for (variable in categorical_vars) {
   return(results)
 }
 ```
+
 ```{r}
 #| eval: false
 
@@ -474,8 +499,8 @@ summary(test_all_years, numeric_vars = "AGEP", categorical_vars = "year")
 
 ```
 
-
 ## Generic Census Plot Function
+
 A custom plot.census() method can also be used to compare a numeric variable across the levels of a categorical variable. The person weights are included in the plot so that each observation is represented according to its PUMS weight.
 
 ```{r}
@@ -536,19 +561,20 @@ For the final investigation, I use the functions developed above to examine hous
 #| eval: false
 
 #Retrieve data for all Census divisions from 2021-2024
-#investigation_data <- get_census_years(
-#  years = 2021:2024,
-#  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
-#  categorical_vars = "SEX",
-#  geography = "Division",
-#  geo_value = "all"
-#)
+investigation_data <- get_census_years(
+  years = 2021:2024,
+  numeric_vars = c("GASP", "GRPIP", "JWMNP", "PWGTP"),
+  categorical_vars = "SEX",
+  geography = "Division",
+  geo_value = "all"
+)
 
 #Save data locally for future use
-#saveRDS(investigation_data, "data/investigation_data.rds")
+saveRDS(investigation_data, "data/investigation_data.rds")
 ```
 
 Here, I load the saved investigation data and account for the value 888 in the 2023 commute-time data. According to the Census metadata, 888 represents a suppressed value for select PUMAs in 2023 rather than an actual commute time. These values are converted to missing values before analysis.
+
 ```{r}
 #Load saved investigation data
 investigation_data <- readRDS("data/investigation_data.rds")
@@ -559,7 +585,8 @@ investigation_data$JWMNP[
 ] <- NA
 ```
 
-Census division codes are returned in numerical format from the Census. It is converted to descriptive labels below.
+Census division codes are returned in numerical format from the Census. They are converted to descriptive labels below.
+
 ```{r}
 #Convert division codes to descriptive labels
 investigation_data$division <- factor(
@@ -584,6 +611,7 @@ investigation_data$division <- factor(
 Because the complete investigation dataset contains more than 13 million observations, a stratified random sample was created for graphical analysis. A reproducible sample of 5,000 observations was selected from each Census division and year combination, resulting in 180,000 observations. The complete dataset was retained for the weighted numerical summaries, while the smaller sample was used to make the graphical analysis computationally manageable.
 
 The resulting random sample contains 180,000 observations and 7 variables.
+
 ```{r}
 #| eval: false
 
@@ -610,19 +638,29 @@ saveRDS(investigation_sample, "data/investigation_sample.rds")
 investigation_sample <- readRDS("data/investigation_sample.rds")
 ```
 
+The custom summary method can also automatically summarize all applicable numeric and categorical variables when no variables are explicitly specified.
+
+```{r}
+#Default summary method
+summary(investigation_sample)
+```
+
 
 ## Weighted Numerical Summaries (Part 1 of 2): Housing Cost Burden by Year
+
 ```{r}
-#Summarize housing cost burden and commute time
+#Summarize housing cost burden and year
 summary(
   investigation_data,
   numeric_vars = "GRPIP",
   categorical_vars = "year"
 )
 ```
-The weighted mean gross rent as a percentage of household income (GRPIP) was approximately 10.98%, with a standard deviation of 22.60. The relatively large standard deviation indicates substantial variation in housing cost burden across observations. The weighted counts increased across the four years, from approximately 331.9 million in 2021 to 340.1 million in 2024. 
+
+The weighted mean gross rent as a percentage of household income (GRPIP) was approximately 10.98%, with a standard deviation of 22.60. The relatively large standard deviation indicates substantial variation in housing cost burden across observations. The weighted counts increased across the four years, from approximately 331.9 million in 2021 to 340.1 million in 2024.
 
 ## Graphical Summaries (Part 1 of 2): Housing Cost Burden by Year
+
 ```{r}
 #Housing cost burden by year
 plot(
@@ -634,7 +672,8 @@ plot(
 
 The weighted distributions of gross rent as a percentage of household income are relatively similar from 2021 through 2024. The middle portions of the distributions show little change across the four years, although 2023 appears slightly lower and 2024 slightly higher. Each year also contains many observations with substantially higher rent-to-income percentages, indicating a right-skewed distribution of housing cost burden.
 
-## Weighted Numerical Summaries (Part 2 of 2): Commute time by Census Division
+## Weighted Numerical Summaries (Part 2 of 2): Commute Time by Census Division
+
 ```{r}
 #Summarize commute time and Census division
 summary(
@@ -643,9 +682,11 @@ summary(
   categorical_vars = "division"
 )
 ```
+
 The weighted mean travel time to work (JWMNP) was approximately 10.81 minutes with a standard deviation of 19.37 minutes. The relatively large standard deviation indicates substantial variation in commute times across observations. The weighted counts also differ across Census divisions, reflecting differences in the populations represented by each geographic area.
 
 ## Graphical Summaries (Part 2 of 2): Commute Time by Census Division
+
 ```{r}
 #Commute time by Census division
 plot(
@@ -663,3 +704,8 @@ plot(
 
 Commute-time distributions are broadly similar across Census divisions, although some regional differences are visible. The South Atlantic and New England divisions appear to have somewhat higher typical commute times than several of the other divisions. All divisions also contain observations with much longer commute times, producing right-skewed distributions with numerous high values.
 
+## Conclusion
+
+The results suggest that housing cost burden remained relatively similar across the four years examined, although substantial variation exists among individual observations. Commute-time distributions were also broadly similar across Census divisions, with some differences in their typical commute times and considerable variation within each division.
+
+Overall, this project demonstrates how Census PUMS data can be retrieved, processed, summarized, and visualized using reusable R functions. Incorporating the PUMS person weights allowed the analysis to account for the number of people represented by each observation.
